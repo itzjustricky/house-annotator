@@ -97,9 +97,7 @@ def main():
 
     zillow_data = retrieve_zillow_data(address_df, api_key=zillow_key)
     zillow_data_df = pd.DataFrame.from_dict(zillow_data)
-    zillow_data_df.to_csv(parsed_args["output_file"])
-    # with open(parsed_args["output_file"], 'w') as fh:
-    #     json.dump(zillow_data, fh)
+    zillow_data_df.to_pickle(parsed_args["output_file"])
 
 
 if __name__ == "__main__":
