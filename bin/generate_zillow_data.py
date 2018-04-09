@@ -1,3 +1,4 @@
+import bpdb
 """
 
 Description:
@@ -47,6 +48,7 @@ Example Zillow Data Schema
 
 """
 
+import json
 import logging
 import argparse
 
@@ -66,37 +68,64 @@ def get_args(args=None):
     parser.add_argument("-o", "--output-file")
     parser.add_argument("--zillow-key", required=True,
                         help="File containing zillow API key.")
+    parser.add_argument("--log-config", type=str,
+                        help="Path to log configuration.")
     return vars(parser.parse_args(args))
 
 
-def retrieve_zillow_data(address_df, api_key):
+def retrieve_zillow_data(zillow_ids, api_key):
     api = zillow.ValuationApi()
     zillow_data = dict()
-    for address, postal_code in address_df.itertuples(index=False):
+    for zillow_id in zillow_ids:
         try:
-            data = api.GetDeepSearchResults(api_key, address, postal_code)
-            zillow_data[address] = data.get_dict()
+            data = api.GetZEstimate(api_key, zillow_id)
+            zillow_data[zillow_id] = format_zillow_data(data.get_dict())
         except zillow.error.ZillowError:
-            logging.info("Could not retrieve data for address: {}; {}"
-                         .format(address, postal_code))
-            print("Could not retrieve data for address: {}, {}"
-                  .format(address, postal_code), flush=True)
+            logging.info("Could not retrieve data for zillow-id: {}"
+                         .format(zillow_id))
     return zillow_data
 
 
 def format_zillow_data(zillow_data):
-    pass
+    """ Format the raw zillow data
+
+    :param zillow_data (dict): raw data retrieved from zillow API
+    """
+
+    def flatten_data(p_dict, keys):
+        """ Flatten the values in p_dict for passed keys """
+        result_dict = dict()
+        for key in keys:
+            result_dict.update(p_dict[key])
+        result_dict
+
+    # retrieve the values of interest
+    flattened_data = flatten_data(
+        zillow_data,
+        ["extended_data", "zestimate", "full_address", "local_realestate"])
+    return flattened_data
 
 
 def main():
     parsed_args = get_args()
 
+    if parsed_args["log_config"]:
+        with open(parsed_args["log_config"], 'r') as fh:
+            log_config = json.load(fh)
+        logging.config.dictConfig(log_config)
+
     with open(parsed_args["zillow_key"], 'r') as fh:
         zillow_key = fh.readline().strip()
-    address_df = pd.read_csv(parsed_args["input_file"])
+    zillow_ids_df = pd.read_csv(parsed_args["input_file"],
+                                names=["zid"], header=None)
 
-    zillow_data = retrieve_zillow_data(address_df, api_key=zillow_key)
+    unique_ids = zillow_ids_df["zid"].unique()
+    logging.info("Retrieved zillow-ids {} and there are {} unique ones."
+                 .format(len(zillow_ids_df), len(unique_ids)))
+    zillow_data = retrieve_zillow_data(unique_ids, api_key=zillow_key)
+
     zillow_data_df = pd.DataFrame.from_dict(zillow_data)
+    bpdb.set_trace()  # ------------------------------ Breakpoint ------------------------------ #
     zillow_data_df.to_pickle(parsed_args["output_file"])
 
 
