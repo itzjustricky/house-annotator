@@ -1,4 +1,3 @@
-import bpdb
 """
 
 Description:
@@ -50,6 +49,7 @@ Example Zillow Data Schema
 
 import json
 import logging
+import logging.config
 import argparse
 
 import pandas as pd
@@ -73,16 +73,16 @@ def get_args(args=None):
     return vars(parser.parse_args(args))
 
 
-def retrieve_zillow_data(zillow_ids, api_key):
+def retrieve_zillow_data(zillow_addresses, api_key):
     api = zillow.ValuationApi()
     zillow_data = dict()
-    for zillow_id in zillow_ids:
+    for address, zipcode in zillow_addresses.itertuples(index=False):
         try:
-            data = api.GetZEstimate(api_key, zillow_id)
-            zillow_data[zillow_id] = format_zillow_data(data.get_dict())
+            data = api.GetDeepSearchResults(api_key, address, zipcode)
+            zillow_data[address] = format_zillow_data(data.get_dict())
         except zillow.error.ZillowError:
-            logging.info("Could not retrieve data for zillow-id: {}"
-                         .format(zillow_id))
+            logging.error("Could not retrieve data for address: {}"
+                          .format(address))
     return zillow_data
 
 
@@ -91,13 +91,12 @@ def format_zillow_data(zillow_data):
 
     :param zillow_data (dict): raw data retrieved from zillow API
     """
-
     def flatten_data(p_dict, keys):
         """ Flatten the values in p_dict for passed keys """
         result_dict = dict()
         for key in keys:
             result_dict.update(p_dict[key])
-        result_dict
+        return result_dict
 
     # retrieve the values of interest
     flattened_data = flatten_data(
@@ -116,16 +115,16 @@ def main():
 
     with open(parsed_args["zillow_key"], 'r') as fh:
         zillow_key = fh.readline().strip()
-    zillow_ids_df = pd.read_csv(parsed_args["input_file"],
-                                names=["zid"], header=None)
+    zillow_addresses_df = pd.read_csv(parsed_args["input_file"],
+                                      names=["address", "zipcode"], header=None)
+    orig_length = zillow_addresses_df.shape[0]
+    zillow_addresses_df = zillow_addresses_df.drop_duplicates()
 
-    unique_ids = zillow_ids_df["zid"].unique()
     logging.info("Retrieved zillow-ids {} and there are {} unique ones."
-                 .format(len(zillow_ids_df), len(unique_ids)))
-    zillow_data = retrieve_zillow_data(unique_ids, api_key=zillow_key)
+                 .format(orig_length, zillow_addresses_df.shape[0]))
 
-    zillow_data_df = pd.DataFrame.from_dict(zillow_data)
-    bpdb.set_trace()  # ------------------------------ Breakpoint ------------------------------ #
+    zillow_data = retrieve_zillow_data(zillow_addresses_df, api_key=zillow_key)
+    zillow_data_df = pd.DataFrame.from_dict(zillow_data, orient='index')
     zillow_data_df.to_pickle(parsed_args["output_file"])
 
 
@@ -133,12 +132,12 @@ if __name__ == "__main__":
     main()
 
 """
-import pdb, traceback, sys
+import bpdb, traceback, sys
 if __name__ == '__main__':
     try:
         main()
     except:
         type, value, tb = sys.exc_info()
         traceback.print_exc()
-        pdb.post_mortem(tb)
+        bpdb.post_mortem(tb)
 """
