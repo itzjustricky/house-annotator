@@ -1,0 +1,1 @@
+python bin/generate_zillow_data.py -i data/zillow-addresses.csv -o zillow-data.pickle --zillow-key ~/.house-apis/zillow.key  --log-config logging.json
